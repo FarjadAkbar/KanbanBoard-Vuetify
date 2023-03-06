@@ -21,26 +21,7 @@ class TasksController extends Controller
     {
         //
         $statuses = Status::with('tasks')->orderBy('order')->get();
-        $columns = [];
-
-        foreach ($statuses as $status) {
-            $column = [
-                'title' => $status->title,
-                'tasks' => []
-            ];
-        
-            foreach ($status->tasks as $task) {
-                $column['tasks'][] = [
-                    'id' => $task->id,
-                    'title' => $task->title,
-                    'date' => $task->created_at->format('M d'),
-                    'description' => $task->description
-                ];
-            }
-        
-            $columns[] = $column;
-        }
-        return Inertia::render('tasks', ['columns' => $columns]);
+        return Inertia::render('Tasks/Index', ['statuses' => $statuses]);
     }
 
     /**
@@ -67,10 +48,19 @@ class TasksController extends Controller
             'description' => ['required'],
         ])->validate();
   
-        Tasks::create($request->all());
+        if($request->id != ""){
+            $task = Tasks::find($request->id);
+        } else{
+            $task = new Tasks();
+        }
+        $task->title = $request->title;
+        $task->description = $request->description;
+        $task->status_id = $request->status_id;
+        $task->order = 0;
+        $task->user_id = auth()->user()->id;
+        $task->save();
   
-        return redirect()->back()
-                    ->with('message', 'task Created Successfully.');
+        return $task;
     }
 
     /**
@@ -106,16 +96,19 @@ class TasksController extends Controller
     {
         //
         Validator::make($request->all(), [
-            'title' => ['required'],
-            'description' => ['required'],
+            'statuses' => ['required', 'array']
         ])->validate();
   
-        if ($request->has('id')) {
-            Tasks::find($request->input('id'))->update($request->all());
-            return redirect()->back()
-                    ->with('message', 'Task Updated Successfully.');
+        foreach ($request->statuses as $status) {
+            foreach ($status['tasks'] as $i => $task) {
+                $order = $i + 1;
+                if ($task['status_id'] !== $status['id'] || $task['order'] !== $order) {
+                    Tasks::find($task['id'])
+                        ->update(['status_id' => $status['id'], 'order' => $order]);
+                }
+            }
         }
-
+        return $request->user()->statuses()->with('tasks')->get();
     }
 
     /**
@@ -124,12 +117,13 @@ class TasksController extends Controller
      * @param  \App\Models\Tasks  $tasks
      * @return \Illuminate\Http\Response
      */
-    public function destroy(Request $request)
+    public function destroy(Request $request, $id)
     {
         //
-        if ($request->has('id')) {
-            Tasks::find($request->input('id'))->delete();
-            return redirect()->back();
-        }
+        // if ($request->has('id')) {
+            Tasks::find($id)->delete();
+            // return redirect()->back();
+        // }
+        return $id;
     }
 }
